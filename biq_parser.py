@@ -281,7 +281,7 @@ def read_race_data(file_path):
                 break  # End of file or no more units
             block_length = struct.unpack('<i', block_length_bytes)[0]
 
-            print(block_length)
+            #print(block_length)
 
             # Read the entire race block
             adv_block = f.read(block_length)
@@ -295,7 +295,7 @@ def read_race_data(file_path):
             no_leader_names = struct.unpack('<i', r.read(4))[0]
             leader_names = []
             for j in range(0, no_leader_names):
-                print(leader_names)
+                #print(leader_names)
                 leader_names.append(r.read(32).decode('cp1252').strip('\x00'))
             
             leader_name = r.read(32).decode('utf-8').strip('\x00')
@@ -372,7 +372,7 @@ def read_resources_data(file_path):
 def read_govt_data(file_path):
     with open(file_path, "rb") as f:
         # Move to the offset where the number of techs is located
-        f.seek(0x7ADC)
+        f.seek(0x7AE0)
         # Read the number of governments (4 bytes, unsigned integer)
         num_govts = struct.unpack('<i', f.read(4))[0]
 
@@ -384,6 +384,8 @@ def read_govt_data(file_path):
             if not block_length_bytes:
                 break  # End of file or no more units
             block_length = struct.unpack('<i', block_length_bytes)[0]
+
+            print(block_length)
 
             # Read the entire unit block
             govt_block = f.read(block_length)
@@ -403,7 +405,7 @@ def read_govt_data(file_path):
 
 
             governments[database_key] = {}
-            governments[database_key]['name'] = name
+            governments[database_key]['name'] = name + " (Government)"
             governments[database_key]['id'] = i
             governments[database_key]['is_default_type'] = default_type
             governments[database_key]['is_transition_type'] = transition_type
@@ -413,17 +415,45 @@ def read_govt_data(file_path):
 
             ruler_titles = []
             for j in range(8):
-                title = r.read(32).decode('utf-8').strip('\x00')
-                ruler_titles.append(title)
+                try:
+                    bytes = r.read(32)
+                    bytes = bytes.replace(b'\xCC', b'\x00')
+                    title = bytes.decode('utf-8').strip('\x00')
+                    ruler_titles.append(title)
+                except:
+                    ruler_titles.append('')
+                    continue
 
-            governments[database_key]['male_titles'] = ruler_titles[::2]
-            governments[database_key]['female_titles'] = ruler_titles[1::2]
+            #Some titles are clearly not in use, so we filter them out (they are lowercase, such as 'zar' for Communism)
+            governments[database_key]['male_titles'] = [title for title in ruler_titles[::2] if title and title[0].isupper()]
+            governments[database_key]['female_titles'] = [title for title in ruler_titles[1::2] if title and title[0].isupper()]
 
+            governments[database_key]['corruption_waste'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['immune_to'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['diplomats_are'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['spies_are'] = struct.unpack('<i', r.read(4))[0]
+            
+            skip_amount = struct.unpack('<i', r.read(4))[0]
+            r.seek(4 * 3 * skip_amount, 1) #Skip intergovernment performance
 
+            governments[database_key]['hurrying'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['assimilation_chance'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['draft_limit'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['military_police_limit'] = struct.unpack('<i', r.read(4))[0]
+            #governments[database_key]['ruler_title_pairs_used'] = struct.unpack('<i', r.read(4))[0]
+            r.seek(4, 1) 
             governments[database_key]['required_advancement_id'] = struct.unpack('<i', r.read(4))[0]
-            governments[database_key]['food_bonus'] = struct.unpack('<i', r.read(4))[0]
-            governments[database_key]['shields_bonus'] = struct.unpack('<i', r.read(4))[0]
-            governments[database_key]['commerce_bonus'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['science_rate_cap'] = struct.unpack('<i', r.read(4))[0] #between 0 and 10
+            governments[database_key]['worker_rate'] = struct.unpack('<i', r.read(4))[0]
+            r.seek(4 * 3, 1) # unknown entries
+            governments[database_key]['free_units'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['free_units_per_town'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['free_units_per_city'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['free_units_per_metropolis'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['cost_per_unit'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['war_weariness'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['xenophobic'] = struct.unpack('<i', r.read(4))[0]
+            governments[database_key]['force_resettle'] = struct.unpack('<i', r.read(4))[0]
 
             r.close()
 
@@ -431,7 +461,7 @@ def read_govt_data(file_path):
 
     return governments
 
-def link_buildings(buildings, building_id_list, unit_id_list, advancement_id_list, resource_id_list):
+def link_buildings(buildings, building_id_list, unit_id_list, advancement_id_list, resource_id_list, govt_id_list):
     for k,v in buildings.items():
             
         v['doubles_happiness_of_building'] = building_id_list[v['doubles_happiness_of_building_id']] if v['doubles_happiness_of_building_id'] != -1 else ''
@@ -450,7 +480,10 @@ def link_buildings(buildings, building_id_list, unit_id_list, advancement_id_lis
         del v['required_advance_id']
 
         v['obsoleted_by_advance'] = advancement_id_list[v['obsoleted_by_advance_id']] if v['obsoleted_by_advance_id'] != -1 else ''
-        del v['obsoleted_by_advance_id']
+        del v['obsoleted_by_advance_id']        
+
+        v['required_government'] = govt_id_list[v['required_government_id']] if v['required_government_id'] != -1 else ''
+        del v['required_government_id']
 
         v['produced_unit'] = unit_id_list[v['produced_unit_id']] if v['produced_unit_id'] != -1 else ''
         del v['produced_unit_id']
@@ -515,6 +548,14 @@ def link_resources(resources, advancement_id_list):
 
     return resources
 
+def link_governments(governments, advancement_id_list):
+    for k,v in governments.items():
+
+        v['required_advancement'] = advancement_id_list[v['required_advancement_id']] if v['required_advancement_id'] != -1 else ''
+        del v['required_advancement_id']
+
+    return governments
+
 with open('Civilopedia.json', 'r') as file:
     civilopedia = json.load(file)
 
@@ -524,24 +565,26 @@ units = read_units_data(file_path)
 advs = read_advancements_data(file_path)
 resources = read_resources_data(file_path)
 races = read_race_data(file_path)
+govts = read_govt_data(file_path)
 
-print(len(races))
-print(json.dumps(races, indent=2))
+print(len(govts))
+print(json.dumps(govts, indent=2))
 
 building_id_list = {v['id']: k for k, v in buildings.items()}
 unit_id_list = {v['id']: k for k, v in units.items()}
 advs_id_list = {v['id']: k for k, v in advs.items()}
 res_id_list = {v['id']: k for k, v in resources.items()}
 race_id_list = {v['id']: k for k, v in races.items()}
+govt_id_list = {v['id']: k for k, v in govts.items()}
 
 
+print(govt_id_list)
 
-print(race_id_list)
-
-buildings = link_buildings(buildings, building_id_list, unit_id_list, advs_id_list, res_id_list)
+buildings = link_buildings(buildings, building_id_list, unit_id_list, advs_id_list, res_id_list, govt_id_list)
 units = link_units(units, building_id_list, unit_id_list, advs_id_list, res_id_list, race_id_list)
 advs = link_advancements(advs, advs_id_list)
 resources = link_resources(resources, advs_id_list)
+govts = link_governments(govts, advs_id_list)
 
 for k,v in civilopedia.items():
     if k in resources:
@@ -554,6 +597,8 @@ for k,v in civilopedia.items():
         civilopedia[k].update(advs[k])
     elif k in races:
         civilopedia[k].update(races[k])
+    elif k in govts:
+        civilopedia[k].update(govts[k])
 
 with open('Civilopedia.json', 'w') as file:
     file.write(json.dumps(civilopedia, indent=2))

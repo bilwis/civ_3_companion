@@ -14,6 +14,7 @@ def clean_text(text, title_list):
     #Keep only double newlines
     text = text.replace('\n\n', '\\d')
     text = text.replace('\n', ' ')
+    text = text.replace('\\d\\d', '\\d')
     text = text.replace('\\d', '\n\n')
     text = text.replace('  ', ' ')
 
@@ -31,7 +32,10 @@ def clean_text(text, title_list):
         
         display = match.group('display')
         key = title_list[m_key]
-        return f'[[{key}|{display}]]'
+        if key == display:
+            return f'[[{key}]]'
+        else:
+            return f'[[{key}|{display}]]'
     
     text = re.sub(rx_link, replace_link, text)
 
@@ -39,6 +43,8 @@ def clean_text(text, title_list):
 
 #Scan text for tables and create markdown tables
 def create_tables(text):
+    return text
+
     rx_table_line = re.compile(r"(?P<key>[\w '-/:<>\[\]|=\{\}]+)\t{1,}[ ]*\t{0,}(?P<values>[\w\ ,.+%-~\t]+)")
 
     lines = text.split("\n")
