@@ -264,6 +264,36 @@ def convert_terrain(terrain):
 
     return md
 
+def convert_civ(civ):
+    md = ""
+    tags = ""
+
+    if 'text' in civ:
+        md += f"{civ['text']}\n"
+    
+    if 'description' in civ:
+        md += f"{civ['description']}\n"
+
+    md += "### Names\n"
+    md += f"**Adjective:** {civ['adjective']}\n"
+    md += f"**Noun:** {civ['noun']}\n"
+    md += f"**Leader:** {civ['leader_title']} {civ['leader_name']}\n"
+
+    md += "#### Great Leader Names\n"
+    for leader_name in civ['leader_names']:
+        md += f"* *{leader_name}*\n"
+
+    md += "#### City Names\n"
+    for city_name in civ['city_names']:
+        md += f"* *{city_name}*\n"
+
+    tags = "#RACE" + f" #{''.join(civ['name'].split(' '))}"
+    if civ['category']:
+        tags += f" #{civ['category']}"
+
+    md += f"\n{tags}\n"
+
+    return md
 
 with open('Civilopedia2.json', 'r') as file:
     civilopedia = json.load(file)
@@ -318,3 +348,11 @@ for k, v in civilopedia.items():
         name = v['name']
         with open(f'output/{name}.md', 'w') as terrain_file:
             terrain_file.write(convert_terrain(v))
+
+    if k.startswith('race_'):
+        if not 'name' in v:
+            continue
+
+        name = v['name']
+        with open(f'output/{name}.md', 'w') as civ_file:
+            civ_file.write(convert_civ(v))
