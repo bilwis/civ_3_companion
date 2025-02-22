@@ -17,6 +17,7 @@ def clean_text(text, title_list):
     text = text.replace('\\d\\d', '\\d')
     text = text.replace('\\d', '\n\n')
     text = text.replace('  ', ' ')
+    text = text.replace(' * ', '\n * ')
 
     text = re.sub(rx_bold, r'**\1**', text)
     text = re.sub(rx_italic, r'*\1*', text)
@@ -174,6 +175,10 @@ for k, v in civilopedia.items():
     for k2, v2 in v.items():
         #print(v2)
         v[k2] = inject_links(v2, title_list)
+
+    if 'possible_resources' in v:
+        v['possible_resources'] = ', '.join([f'[[{title_list[resource]}]]' for resource in v['possible_resources']])
+        print(v['possible_resources'])
 
     if 'flags' in v:
         v['flag_string'] = create_flag_string(v['flags'])

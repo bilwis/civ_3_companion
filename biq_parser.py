@@ -385,7 +385,7 @@ def read_govt_data(file_path):
                 break  # End of file or no more units
             block_length = struct.unpack('<i', block_length_bytes)[0]
 
-            print(block_length)
+            #print(block_length)
 
             # Read the entire unit block
             govt_block = f.read(block_length)
@@ -460,6 +460,75 @@ def read_govt_data(file_path):
     f.close()
 
     return governments
+
+def read_terr_data(file_path):
+    with open(file_path, "rb") as f:
+        # Move to the offset where the number of terrains is located
+        f.seek(0x2FCEF)
+        # Read the number of terrains (4 bytes, unsigned integer)
+        num_terr = struct.unpack('<i', f.read(4))[0]
+
+        terrains = {}
+
+        for i in range(0,num_terr):
+            # Read the length of the terr block (4 bytes, unsigned integer)
+            block_length_bytes = f.read(4)
+            if not block_length_bytes:
+                break  # End of file or no more terrains
+
+            block_length = struct.unpack('<i', block_length_bytes)[0]
+
+            print(block_length)
+
+            # Read the entire unit block
+            terr_block = f.read(block_length)
+            r = BytesIO(terr_block)
+
+            r.seek(4, 1) #number of possible resources
+
+            # Read 4 bytes for possible resources flags
+            possible_resources = []
+            resource_flags = extract_flags_from_bytes(r.read(4), start_index=0, end_index=32, FLAG_NAMES=None)
+            for resource_id, is_possible in resource_flags.items():
+                if is_possible:
+                    possible_resources.append(resource_id)
+
+            name = r.read(32).decode('utf-8').strip('\x00')
+
+            # Read the database key (32 bytes string following the name)
+            database_key = r.read(32).decode('utf-8').strip('\x00').lower()
+
+            terrains[database_key] = {}
+            terrains[database_key]['name'] = name
+            terrains[database_key]['id'] = i
+            terrains[database_key]['possible_resources'] = possible_resources
+
+            terrains[database_key]['irrigation_bonus'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['mining_bonus'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['road_bonus'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['defense_bonus'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['movement_cost'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['food'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['shields'] = struct.unpack('<i', r.read(4))[0]
+            terrains[database_key]['commerce'] = struct.unpack('<i', r.read(4))[0]
+
+            r.seek(4*2, 1) #worker job and pollution effect
+
+            # Read 8 terrain flags/settings as individual bytes (0 or 1)
+            terrains[database_key]['allow_city'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['allow_colony'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['impassable'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['impassable_wheeled'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['allow_airfield'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['allow_fort'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['allow_outpost'] = struct.unpack('B', r.read(1))[0]
+            terrains[database_key]['allow_radar_tower'] = struct.unpack('B', r.read(1))[0]
+
+            r.close()
+
+    f.close()
+
+    return terrains
 
 def link_buildings(buildings, building_id_list, unit_id_list, advancement_id_list, resource_id_list, govt_id_list):
     for k,v in buildings.items():
@@ -556,6 +625,13 @@ def link_governments(governments, advancement_id_list):
 
     return governments
 
+def link_terrains(terrains, resource_id_list):
+    for k,v in terrains.items():
+        v['possible_resources'] = [resource_id_list[resource_id] for resource_id in v['possible_resources']]
+        print(v['possible_resources'])
+
+    return terrains
+
 with open('Civilopedia.json', 'r') as file:
     civilopedia = json.load(file)
 
@@ -566,9 +642,10 @@ advs = read_advancements_data(file_path)
 resources = read_resources_data(file_path)
 races = read_race_data(file_path)
 govts = read_govt_data(file_path)
+terrs = read_terr_data(file_path)
 
-print(len(govts))
-print(json.dumps(govts, indent=2))
+print(len(terrs))
+print(json.dumps(terrs, indent=2))
 
 building_id_list = {v['id']: k for k, v in buildings.items()}
 unit_id_list = {v['id']: k for k, v in units.items()}
@@ -576,15 +653,16 @@ advs_id_list = {v['id']: k for k, v in advs.items()}
 res_id_list = {v['id']: k for k, v in resources.items()}
 race_id_list = {v['id']: k for k, v in races.items()}
 govt_id_list = {v['id']: k for k, v in govts.items()}
+terr_id_list = {v['id']: k for k, v in terrs.items()}
 
-
-print(govt_id_list)
+#print(terr_id_list)
 
 buildings = link_buildings(buildings, building_id_list, unit_id_list, advs_id_list, res_id_list, govt_id_list)
 units = link_units(units, building_id_list, unit_id_list, advs_id_list, res_id_list, race_id_list)
 advs = link_advancements(advs, advs_id_list)
 resources = link_resources(resources, advs_id_list)
 govts = link_governments(govts, advs_id_list)
+terrs = link_terrains(terrs, res_id_list)
 
 for k,v in civilopedia.items():
     if k in resources:
@@ -599,6 +677,8 @@ for k,v in civilopedia.items():
         civilopedia[k].update(races[k])
     elif k in govts:
         civilopedia[k].update(govts[k])
+    elif k in terrs:
+        civilopedia[k].update(terrs[k])
 
 with open('Civilopedia.json', 'w') as file:
     file.write(json.dumps(civilopedia, indent=2))

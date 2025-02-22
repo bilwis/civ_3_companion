@@ -14,14 +14,49 @@ def convert_gcon(gcon):
     tags = "#GCON" + f" #{''.join(gcon['title'].split(' '))}"
 
     if 'category' in gcon:
-        tags += f" #{gcon['category']}"
+        if not gcon['category'] == '':
+            tags += f" #{gcon['category']}"
     if 'subcategory' in gcon:
-        tags += f" #{gcon['subcategory']}"
+        if not gcon['subcategory'] == '':
+            tags += f" #{gcon['subcategory']}"
 
     md += f"\n{tags}\n"
 
     return md
 
+def convert_tech(tech):
+    if not 'id' in tech:
+        return
+    
+    md = ""
+    tags = ""
+
+    if 'text' in tech:
+        md += f"{tech['text']}\n"
+
+    md += "### Statistics\n"
+    md += f"**Cost:** {tech['cost']}\n"
+
+    if 'description' in tech:
+        md += "### Description\n"
+        md += f"> *{tech['description']}*\n"
+
+    if 'required_advancement_1' in tech:
+        md += "### Requirements\n"
+        reqs = [tech.get(f'required_advancement_{i}') for i in range(1, 5)]
+        reqs = [r for r in reqs if r]
+        if reqs:
+            md += "**Required Technologies:** " + ", ".join(reqs) + "\n"
+
+    tags = "#TECH" + f" #{''.join(tech['name'].split(' '))}"
+    if tech['category']:
+        tags += f" #{tech['category']}"
+    if tech['subcategory']:
+        tags += f" #{tech['subcategory']}"
+
+    md += f"\n{tags}\n"
+
+    return md
 
 def convert_unit(unit):
     if not 'id' in unit:
@@ -137,7 +172,7 @@ def convert_building(bldg):
     if bldg['obsoleted_by_advance']:
         md += f"**Obsoleted by:** {bldg['obsoleted_by_advance']}\n"
 
-    tags = "#BLDG" + f" #{''.join(bldg['name'].split(' '))}"
+    tags = "#BLDG" + f" #{''.join(bldg['name'].replace('\'','').split(' '))}"
     if bldg['category']:
         tags += f" #{bldg['category']}"
     if bldg['subcategory']:
@@ -146,6 +181,88 @@ def convert_building(bldg):
 
     return md
 
+def convert_good(good):
+    if not 'id' in good:
+        return
+    
+    md = ""
+    tags = ""
+
+    if 'text' in good:
+        md += f"{good['text']}\n"
+
+    md += "### Statistics\n"
+    md += f"**Food Bonus:** {good['food_bonus']}\n"
+    md += f"**Shields Bonus:** {good['shields_bonus']}\n"
+    md += f"**Commerce Bonus:** {good['commerce_bonus']}\n"
+
+    if 'description' in good:
+        md += "### Description\n"
+        md += f"> *{good['description']}*\n"
+
+    if good['required_advancement']:
+        md += "### Requirements\n"
+        md += f"**Required Technology:** {good['required_advancement']}\n"
+
+    tags = "#GOOD" + f" #{''.join(good['name'].split(' '))}"
+    if good['category']:
+        tags += f" #{good['category']}"
+    if good['subcategory']:
+        tags += f" #{good['subcategory']}"
+    md += f"\n{tags}\n"
+
+    return md
+
+def convert_terrain(terrain):
+    md = ""
+    tags = ""
+
+    if 'text' in terrain:
+        md += f"{terrain['text']}\n"
+
+    md += "### Statistics\n"
+    md += f"**Defense Bonus:** {terrain['defense_bonus']}\n"
+    md += f"**Movement Cost:** {terrain['movement_cost']}\n"
+    md += f"**Impassable:** {terrain['impassable']}\n"
+    md += f"**Impassable (wheeled):** {terrain['impassable_wheeled']}\n"
+
+    md += "#### Production when worked by citizen\n"
+    md += f"**Food:** {terrain['food']}\n"
+    md += f"**Shields:** {terrain['shields']}\n"
+    md += f"**Commerce:** {terrain['commerce']}\n"
+
+    md += "#### Production bonus with improvements\n"
+    md += f"**Food Bonus w/ Irrigation:** {terrain['irrigation_bonus']}\n"
+    md += f"**Shields Bonus w/ Mine:** {terrain['mining_bonus']}\n"
+    md += f"**Commerce Bonus w/ Road:** {terrain['road_bonus']}\n"
+
+    if 'possible_resources' in terrain:
+        md += "### Resources\n"
+        if len(terrain['possible_resources']) > 0:
+            md += f"**Possible Resources:** {terrain['possible_resources']}\n"
+        else:
+            md += f"**Possible Resources:** None\n"
+
+    if 'description' in terrain:
+        md += "### Description\n"
+        md += f"> *{terrain['description']}*\n"
+
+    md += "### Building Restrictions\n"
+    md += f"**Can build city?:** {'Yes' if terrain['allow_city'] else 'No'}\n"
+    md += f"**Can build colony?:** {'Yes' if terrain['allow_colony'] else 'No'}\n"
+    md += f"**Can build fort?:** {'Yes' if terrain['allow_fort'] else 'No'}\n"
+    md += f"**Can build airfield?:** {'Yes' if terrain['allow_airfield'] else 'No'}\n"
+    md += f"**Can build outpost?:** {'Yes' if terrain['allow_outpost'] else 'No'}\n"
+    md += f"**Can build radar tower?:** {'Yes' if terrain['allow_radar_tower'] else 'No'}\n"
+
+    tags = "#TERRAIN" + f" #{''.join(terrain['name'].split(' '))}"
+    if terrain['category']:
+        tags += f" #{terrain['category']}"
+    if terrain['subcategory']:
+        tags += f" #{terrain['subcategory']}"
+    md += f"\n{tags}\n"
+
+    return md
 
 
 with open('Civilopedia2.json', 'r') as file:
@@ -160,6 +277,7 @@ for k, v in civilopedia.items():
         print(name)
         with open(f'output/{name}.md', 'w') as unit_file:
             unit_file.write(convert_unit(v))
+
     if k.startswith('bldg_'):
         if not 'name' in v:
             continue
@@ -167,6 +285,7 @@ for k, v in civilopedia.items():
         name = v['name'].replace('/', '_')
         with open(f'output/{name}.md', 'w') as bldg_file:
             bldg_file.write(convert_building(v))
+
     if k.startswith('gcon_'):
         if not 'title' in v:
             continue
@@ -175,3 +294,27 @@ for k, v in civilopedia.items():
         print(f'output/{title}.md')
         with open(f'output/{title}.md', 'w') as gcon_file:
             gcon_file.write(convert_gcon(v))
+
+    if k.startswith('tech_'):
+        if not 'name' in v:
+            continue
+
+        name = v['name']
+        with open(f'output/{name}.md', 'w') as tech_file:
+            tech_file.write(convert_tech(v))
+
+    if k.startswith('good_'):
+        if not 'name' in v:
+            continue
+
+        name = v['name']
+        with open(f'output/{name}.md', 'w') as good_file:
+            good_file.write(convert_good(v))
+
+    if k.startswith('terr_'):
+        if not 'name' in v:
+            continue
+
+        name = v['name']
+        with open(f'output/{name}.md', 'w') as terrain_file:
+            terrain_file.write(convert_terrain(v))
